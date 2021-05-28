@@ -1,0 +1,22 @@
+_BASE_: Base-attribute.yml
+
+DATASETS:
+  NAMES: ("CarAttr",)
+  TESTS: ("CarAttr",)
+
+MODEL:
+
+  HEADS:
+    NUM_CLASSES: 15
+
+DATALOADER:
+  NUM_INSTANCE: 2
+  NUM_WORKERS: 6
+
+SOLVER:
+  IMS_PER_BATCH: 2
+
+TEST:
+  IMS_PER_BATCH: 2
+
+OUTPUT_DIR: projects/FastAttr/logs/pa100k/strong_baseline
