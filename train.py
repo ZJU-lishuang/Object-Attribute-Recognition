@@ -7,15 +7,16 @@ import logging
 import math
 
 from model.model import buildModel
-from data.carattr import CarAttr
+import torch.nn.functional as F
 
+#TODO: remove cfg dependence(simplify code)
+from data.carattr import CarAttr
 from fastreid.config import get_cfg
 from fastreid.data.transforms import build_transforms
 from fastreid.engine import default_argument_parser, default_setup, launch
 from fastreid.config import CfgNode as CN
 from data.attr_dataset import AttrDataset
 from fastreid.data.build import build_reid_train_loader
-import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,6 @@ def preprocess_image(batched_inputs):
     images.sub_(pixel_mean).div_(pixel_std)
     return images
 
-
 def ratio2weight(targets, ratio):
     pos_weights = targets * (1 - ratio)
     neg_weights = (1 - targets) * ratio
@@ -110,7 +110,6 @@ def ratio2weight(targets, ratio):
 
     weights[targets > 1] = 0.0
     return weights
-
 
 def cross_entropy_sigmoid_loss(pred_class_logits, gt_classes, sample_weight=None):
     loss = F.binary_cross_entropy_with_logits(pred_class_logits, gt_classes, reduction='none')
@@ -148,11 +147,10 @@ def computelosses(outputs, gt_labels,sample_weights=None):
     return loss_dict
 
 def train():
+    # Set DDP variables
     global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(global_rank)
 
-    args = default_argument_parser().parse_args()
-    cfg = setup(args)
     root='../data'
     start_epoch = 0
     epochs = 30
@@ -162,18 +160,24 @@ def train():
     hyp['lrf'] = 0.2
     hyp['momentum'] = 0.937
     hyp['weight_decay'] = 0.0005
-
+    IMS_PER_BATCH=2
+    #init device
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    #init dataset loader
+    args = default_argument_parser().parse_args()
+    cfg = setup(args)
+    #TODO: remove cfg dependence(simplify code),refactor dataset loader
     train_dataset=build_train_dataloader(cfg,root)
+
     feat_dim=512
     num_classes=train_dataset.dataset.num_classes
+    #init model
     model=buildModel(feat_dim,num_classes).to(DEVICE)
-
+    #init optimizer
     optimizer=build_optimizer(hyp,model)
-    iters_per_epoch = len(train_dataset.dataset) // cfg.SOLVER.IMS_PER_BATCH
+    iters_per_epoch = len(train_dataset.dataset) // IMS_PER_BATCH
     _data_loader_iter = iter(train_dataset)
-
+    #init scheduler
     scheduler=build_lr_scheduler(hyp, optimizer, epochs)
 
 
