@@ -158,6 +158,9 @@ def train(hyp,opt):
     epochs = opt.epochs
     IMS_PER_BATCH=opt.batch_size
 
+    save_dir='log'
+    results_file = 'log/results.txt'
+
     #init device
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     #init dataset loader
@@ -179,11 +182,12 @@ def train(hyp,opt):
 
 
     save_model_path="runs/"
-    debug_steps = 2
+    debug_steps = 100
     validation_epochs = 5
     for epoch in range(start_epoch,epochs):
         model.train()
         running_loss=0.0
+        mloss = torch.zeros(1, device=DEVICE)  # mean losses
         for i in range(iters_per_epoch):
         # for i, data in enumerate(train_dataset):
             data = next(_data_loader_iter)
@@ -207,13 +211,29 @@ def train(hyp,opt):
                     f"Average Loss: {avg_loss:.4f}, "
                 )
                 running_loss = 0.0
+
+            mloss = (mloss * i + losses.item()) / (i + 1)  # update mean losses
+            mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
+            s = ('%10s' * 2 + '%10.4g' * 1) % (
+                '%g/%g' % (epoch, epochs - 1), mem, *mloss)
+            if i and i % debug_steps == 0:
+                logger.info(('\n' + '%10s' * 3) % ('Epoch', 'gpu_mem', 'loss'))
+                logger.info(s)
+
         scheduler.step()
+
+
+
         if epoch % validation_epochs == 0 or epoch == epochs - 1:
             model_path = os.path.join(save_model_path, f"Epoch-{epoch}.pth")
             model_state_dict=model.state_dict()
             torch.save(model_state_dict, model_path)
             # model.save(model_path)
             logger.info(f"Saved model {model_path}")
+
+        # Write
+        with open(results_file, 'a') as f:
+            f.write(s + '\n')
 
 
 
