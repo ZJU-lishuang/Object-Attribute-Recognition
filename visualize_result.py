@@ -100,7 +100,7 @@ if __name__ == '__main__':
     model = buildModel(feat_dim, num_classes).to(DEVICE)
     model.eval()
 
-    modelfile="runs/Epoch-10.pth"
+    modelfile="runs/Epoch-29.pth"
 
     state_dict=torch.load(modelfile, map_location=lambda storage, loc: storage)
     model.load_state_dict(state_dict, strict=False)  # load

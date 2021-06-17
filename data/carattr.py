@@ -73,7 +73,7 @@ class CarAttr(Dataset):
         attr_dict = {i: str(attr) for i, attr in enumerate(names)}
         self.num_classes = len(names)
 
-        self.data_dir = "../data/gongjiaotrainmin.txt"
+        self.data_dir = "../data/gongjiaotrain.txt"
         train = self.extract_data()
 
         self.data_dir = "../data/gongjiaovalid.txt"

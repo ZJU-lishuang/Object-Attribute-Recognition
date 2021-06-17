@@ -5,6 +5,8 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import logging
 import math
+import argparse
+import yaml
 
 from model.model import buildModel
 import torch.nn.functional as F
@@ -146,21 +148,16 @@ def computelosses(outputs, gt_labels,sample_weights=None):
 
     return loss_dict
 
-def train():
+def train(hyp,opt):
     # Set DDP variables
     global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(global_rank)
 
     root='../data'
     start_epoch = 0
-    epochs = 30
+    epochs = opt.epochs
+    IMS_PER_BATCH=opt.batch_size
 
-    hyp = {}
-    hyp['lr0'] = 0.01
-    hyp['lrf'] = 0.2
-    hyp['momentum'] = 0.937
-    hyp['weight_decay'] = 0.0005
-    IMS_PER_BATCH=2
     #init device
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     #init dataset loader
@@ -182,10 +179,11 @@ def train():
 
 
     save_model_path="runs/"
+    debug_steps = 2
+    validation_epochs = 5
     for epoch in range(start_epoch,epochs):
         model.train()
         running_loss=0.0
-        debug_steps=2
         for i in range(iters_per_epoch):
         # for i, data in enumerate(train_dataset):
             data = next(_data_loader_iter)
@@ -210,7 +208,6 @@ def train():
                 )
                 running_loss = 0.0
         scheduler.step()
-        validation_epochs=5
         if epoch % validation_epochs == 0 or epoch == epochs - 1:
             model_path = os.path.join(save_model_path, f"Epoch-{epoch}.pth")
             model_state_dict=model.state_dict()
@@ -224,4 +221,13 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--hyp', type=str, default='config/hyp.scratch.yaml', help='hyperparameters path')
+    parser.add_argument('--epochs', type=int, default=30)
+    parser.add_argument('--batch-size', type=int, default=2, help='total batch size for all GPUs')
+    opt = parser.parse_args()
+
+    # Hyperparameters
+    with open(opt.hyp) as f:
+        hyp = yaml.load(f, Loader=yaml.FullLoader)  # load hyps
+    train(hyp,opt)
