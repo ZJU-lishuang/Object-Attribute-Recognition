@@ -7,8 +7,11 @@ import logging
 import math
 import argparse
 import yaml
+import torch.distributed as dist
+from data.attr_dataset import create_dataloader
 
 from model.model import buildModel
+from utils.torch_utils import select_device
 import torch.nn.functional as F
 
 #TODO: remove cfg dependence(simplify code)
@@ -149,10 +152,6 @@ def computelosses(outputs, gt_labels,sample_weights=None):
     return loss_dict
 
 def train(hyp,opt):
-    # Set DDP variables
-    global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
-    set_logging(global_rank)
-
     root='../data'
     start_epoch = 0
     epochs = opt.epochs
@@ -168,6 +167,12 @@ def train(hyp,opt):
     cfg = setup(args)
     #TODO: remove cfg dependence(simplify code),refactor dataset loader
     train_dataset=build_train_dataloader(cfg,root)
+    ##########
+    # img_size=[256,192]
+    # workers=8
+    # batch_size=opt.batch_size
+    # train_dataset=create_dataloader(root, img_size,batch_size,rank=opt.global_rank,world_size=opt.world_size,workers=workers)
+    #########
 
     feat_dim=512
     num_classes=train_dataset.dataset.num_classes
@@ -245,7 +250,26 @@ if __name__ == "__main__":
     parser.add_argument('--hyp', type=str, default='config/hyp.scratch.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--batch-size', type=int, default=2, help='total batch size for all GPUs')
+    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
+
     opt = parser.parse_args()
+
+    # Set DDP variables
+    opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
+    opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
+    set_logging(opt.global_rank)
+
+    # DDP mode
+    opt.total_batch_size = opt.batch_size
+    device = select_device(opt.device, batch_size=opt.batch_size)
+    if opt.local_rank != -1:
+        assert torch.cuda.device_count() > opt.local_rank
+        torch.cuda.set_device(opt.local_rank)
+        device = torch.device('cuda', opt.local_rank)
+        dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
+        assert opt.batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
+        opt.batch_size = opt.total_batch_size // opt.world_size
 
     # Hyperparameters
     with open(opt.hyp) as f:
