@@ -15,6 +15,7 @@ import glob
 from pathlib import Path
 import logging
 from torch._six import container_abcs, string_classes, int_classes
+from typing import Any, List, Sequence
 
 from fastreid.data.data_utils import read_image
 
@@ -172,7 +173,64 @@ class _RepeatSampler(object):
         while True:
             yield from iter(self.sampler)
 
+try:
+    import accimage
+except ImportError:
+    accimage = None
+
+def _is_pil_image(img: Any) -> bool:
+    if accimage is not None:
+        return isinstance(img, (Image.Image, accimage.Image))
+    else:
+        return isinstance(img, Image.Image)
+
+def resize(img, size, interpolation=Image.BILINEAR):
+    r"""PRIVATE METHOD. Resize the input PIL Image to the given size.
+
+    .. warning::
+
+        Module ``transforms.functional_pil`` is private and should not be used in user application.
+        Please, consider instead using methods from `transforms.functional` module.
+
+    Args:
+        img (PIL Image): Image to be resized.
+        size (sequence or int): Desired output size. If size is a sequence like
+            (h, w), the output size will be matched to this. If size is an int,
+            the smaller edge of the image will be matched to this number maintaining
+            the aspect ratio. i.e, if height > width, then image will be rescaled to
+            :math:`\left(\text{size} \times \frac{\text{height}}{\text{width}}, \text{size}\right)`.
+            For compatibility reasons with ``functional_tensor.resize``, if a tuple or list of length 1 is provided,
+            it is interpreted as a single int.
+        interpolation (int, optional): Desired interpolation. Default is ``PIL.Image.BILINEAR``.
+
+    Returns:
+        PIL Image: Resized image.
+    """
+    if not _is_pil_image(img):
+        raise TypeError('img should be PIL Image. Got {}'.format(type(img)))
+    if not (isinstance(size, int) or (isinstance(size, Sequence) and len(size) in (1, 2))):
+        raise TypeError('Got inappropriate size arg: {}'.format(size))
+
+    if isinstance(size, int) or len(size) == 1:
+        if isinstance(size, Sequence):
+            size = size[0]
+        w, h = img.size
+        if (w <= h and w == size) or (h <= w and h == size):
+            return img
+        if w < h:
+            ow = size
+            oh = int(size * h / w)
+            return img.resize((ow, oh), interpolation)
+        else:
+            oh = size
+            ow = int(size * w / h)
+            return img.resize((ow, oh), interpolation)
+    else:
+        return img.resize(size[::-1], interpolation)
+
 class LoadImagesAndLabels(Dataset):
+    dataset_dir = 'output'
+
     def __init__(self,root='',img_size=[256,192],mode='train'):
         self.root = root
         self.img_size = img_size
@@ -182,7 +240,9 @@ class LoadImagesAndLabels(Dataset):
         with open(class_name, 'r') as f:
             names = np.array([x for x in f.read().strip().splitlines()], dtype=np.str)  # labels
         attr_dict = {i: str(attr) for i, attr in enumerate(names)}
-        self.num_classes = len(names)
+        # self.num_classes = len(names)
+        self._attr_dict = attr_dict
+        self._num_attrs = len(self.attr_dict)
 
         self.data_dir = "../data/gongjiaotrain.txt"
         train = self.extract_data()
@@ -198,15 +258,14 @@ class LoadImagesAndLabels(Dataset):
         self.train = train
         self.val = val
         self.test = test
-        self._attr_dict = attr_dict
-        self._num_attrs = len(self.attr_dict)
+
 
         if mode == 'train':
-            self.data = self.train
+            self.img_items = self.train
         elif mode == 'val':
-            self.data = self.val
+            self.img_items = self.val
         else:
-            self.data = self.test
+            self.img_items = self.test
 
     def cache_labels(self, path=Path('./labels.cache')):
         # Cache dataset labels, check images and read shapes
@@ -319,9 +378,10 @@ class LoadImagesAndLabels(Dataset):
         img = read_image(img_path)
 
         # if self.transform is not None: img = self.transform(img)
-        img = img.resize(self.img_size[0] if len(self.img_size) == 1 else self.img_size, interpolation=3)
+        # img = img.resize(self.img_size[0] if len(self.img_size) == 1 else self.img_size, resample=3)
+        img=resize(img,self.img_size[0] if len(self.img_size) == 1 else self.img_size,3)
 
-        to_tensor(img)
+        img=to_tensor(img)
 
         labels = torch.as_tensor(labels)
 
@@ -330,6 +390,22 @@ class LoadImagesAndLabels(Dataset):
             "targets": labels,
             "img_paths": img_path,
         }
+
+    def check_before_run(self, required_files):
+        """Checks if required files exist before going deeper.
+        Args:
+            required_files (str or list): string file name(s).
+        """
+        if isinstance(required_files, str):
+            required_files = [required_files]
+
+        for fpath in required_files:
+            if not os.path.exists(fpath):
+                raise RuntimeError('"{}" is not found'.format(fpath))
+
+    @property
+    def attr_dict(self):
+        return self._attr_dict
 
     @property
     def num_classes(self):

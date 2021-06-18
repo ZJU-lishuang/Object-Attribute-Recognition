@@ -80,14 +80,19 @@ def build_lr_scheduler(hyp,optimizer,epochs):
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     return scheduler
 
+from data.attr_dataset import LoadImagesAndLabels
+
 def build_train_dataloader(cfg,root):
-    train_dataset = CarAttr(root)
-    train_dataset.show_train()
-    attr_dict = train_dataset.attr_dict
-    train_items = list()
-    train_items.extend(train_dataset.train)
-    train_transforms = build_transforms(cfg, is_train=True)
-    train_set = AttrDataset(train_items, train_transforms, attr_dict)
+    # train_dataset = CarAttr(root)
+    # train_dataset.show_train()
+    # attr_dict = train_dataset.attr_dict
+    # train_items = list()
+    # train_items.extend(train_dataset.train)
+    # train_transforms = build_transforms(cfg, is_train=True)
+    # train_set = AttrDataset(train_items, train_transforms, attr_dict)
+    #[h,w]
+    img_size = [256, 192]
+    train_set = LoadImagesAndLabels(root, img_size)
     data_loader = build_reid_train_loader(cfg, train_set=train_set)
     return data_loader
 
