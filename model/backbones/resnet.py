@@ -5,7 +5,10 @@
 """
 import torch
 import torch.nn as nn
-from torchsummary import summary
+try:
+    from torchsummary import summary
+except ImportError:
+    summary = None
 import torch.nn.functional as F
 import logging
 
@@ -228,7 +231,8 @@ def test():
     def ResNet_18(num_classes=1000):
         return ResNet(18,num_classes=num_classes)
     net=ResNet_18()
-    summary(net, (3, 224, 224),device='cpu')
+    if summary is not None:
+        summary(net, (3, 224, 224),device='cpu')
 
 if __name__ == '__main__':
     backbone=build_resnet_backbone()
