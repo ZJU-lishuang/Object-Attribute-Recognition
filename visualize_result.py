@@ -1,12 +1,4 @@
-# encoding: utf-8
-"""
-@author:  xingyu liao
-@contact: sherlockliao01@gmail.com
-"""
 
-# import argparse
-# import logging
-# import sys
 import glob
 import os
 
@@ -16,60 +8,13 @@ import cv2
 import torch
 import tqdm
 from torch.backends import cudnn
-#
-#
-#
-# sys.path.append('.')
-#
-# from fastreid.evaluation import evaluate_rank
-# from fastreid.config import get_cfg
-# from fastreid.utils.logger import setup_logger
-# from fastreid.data import build_reid_test_loader
-# from predictor import FeatureExtractionDemo
-# from fastreid.utils.visualizer import Visualizer
-# from fastreid.engine import DefaultTrainer
-# from fastreid.data.datasets import DATASET_REGISTRY
-# from fastreid.utils import comm
-# from fastreid.data.transforms import build_transforms
-# from fastreid.data.build import _root
+
 from fastreid.utils.file_io import PathManager
-# # import some modules added in project
-# # for example, add partial reid like this below
-# # sys.path.append("projects/PartialReID")
-# # from partialreid import *
-#
-#
+
 cudnn.benchmark = True
-# setup_logger(name="fastreid")
-#
-# logger = logging.getLogger('fastreid.visualize_result')
 
 from model.model import buildModel
 import torch.nn.functional as F
-# from fastreid.config import get_cfg
-# from fastreid.engine import default_argument_parser,default_setup
-# from fastreid.config import CfgNode as CN
-
-# def setup(args):
-#     """
-#     Create configs and perform basic setups.
-#     """
-#     cfg = get_cfg()
-#     add_attr_config(cfg)
-#     args.config_file="config/carattr_res18.yml"
-#     cfg.merge_from_file(args.config_file)
-#     cfg.merge_from_list(args.opts)
-#     cfg.freeze()
-#     default_setup(cfg, args)
-#     return cfg
-
-# def add_attr_config(cfg):
-#     _C = cfg
-#
-#     _C.MODEL.LOSSES.BCE = CN({"WEIGHT_ENABLED": True})
-#     _C.MODEL.LOSSES.BCE.SCALE = 1.
-#
-#     _C.TEST.THRES = 0.5
 
 def preprocess_image(batched_inputs):
     """
@@ -90,9 +35,6 @@ def preprocess_image(batched_inputs):
 
 
 if __name__ == '__main__':
-    # demo = FeatureExtractionDemo(cfg, parallel=args.parallel)
-    # args = default_argument_parser().parse_args()
-    # cfg = setup(args)
     img_size = [256, 192]
     SIZE_TEST=img_size
 
