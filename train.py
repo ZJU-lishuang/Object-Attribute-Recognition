@@ -15,12 +15,12 @@ from utils.torch_utils import select_device
 import torch.nn.functional as F
 
 #TODO: remove cfg dependence(simplify code)
-from data.carattr import CarAttr
-from fastreid.config import get_cfg
-from fastreid.data.transforms import build_transforms
-from fastreid.engine import default_argument_parser, default_setup, launch
-from fastreid.config import CfgNode as CN
-from data.attr_dataset import AttrDataset
+# from data.carattr import CarAttr
+# from fastreid.config import get_cfg
+# from fastreid.data.transforms import build_transforms
+# from fastreid.engine import default_argument_parser, default_setup, launch
+# from fastreid.config import CfgNode as CN
+# from data.attr_dataset import AttrDataset
 from fastreid.data.build import build_reid_train_loader
 
 logger = logging.getLogger(__name__)
@@ -30,26 +30,26 @@ def set_logging(rank=-1):
         format="%(message)s",
         level=logging.INFO if rank in [-1, 0] else logging.WARN)
 
-def add_attr_config(cfg):
-    _C = cfg
+# def add_attr_config(cfg):
+#     _C = cfg
+#
+#     _C.MODEL.LOSSES.BCE = CN({"WEIGHT_ENABLED": True})
+#     _C.MODEL.LOSSES.BCE.SCALE = 1.
+#
+#     _C.TEST.THRES = 0.5
 
-    _C.MODEL.LOSSES.BCE = CN({"WEIGHT_ENABLED": True})
-    _C.MODEL.LOSSES.BCE.SCALE = 1.
-
-    _C.TEST.THRES = 0.5
-
-def setup(args):
-    """
-    Create configs and perform basic setups.
-    """
-    cfg = get_cfg()
-    add_attr_config(cfg)
-    args.config_file="config/carattr_res18.yml"
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-    default_setup(cfg, args)
-    return cfg
+# def setup(args):
+#     """
+#     Create configs and perform basic setups.
+#     """
+#     cfg = get_cfg()
+#     add_attr_config(cfg)
+#     args.config_file="config/carattr_res18.yml"
+#     cfg.merge_from_file(args.config_file)
+#     cfg.merge_from_list(args.opts)
+#     cfg.freeze()
+#     default_setup(cfg, args)
+#     return cfg
 
 def one_cycle(y1=0.0, y2=1.0, steps=100):
     # lambda function for sinusoidal ramp from y1 to y2
@@ -80,21 +80,14 @@ def build_lr_scheduler(hyp,optimizer,epochs):
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     return scheduler
 
-from data.attr_dataset import LoadImagesAndLabels
+# from data.attr_dataset import LoadImagesAndLabels
 
-def build_train_dataloader(cfg,root):
-    # train_dataset = CarAttr(root)
-    # train_dataset.show_train()
-    # attr_dict = train_dataset.attr_dict
-    # train_items = list()
-    # train_items.extend(train_dataset.train)
-    # train_transforms = build_transforms(cfg, is_train=True)
-    # train_set = AttrDataset(train_items, train_transforms, attr_dict)
-    #[h,w]
-    img_size = [256, 192]
-    train_set = LoadImagesAndLabels(root, img_size)
-    data_loader = build_reid_train_loader(cfg, train_set=train_set)
-    return data_loader
+# def build_train_dataloader(cfg,root):
+#     #[h,w]
+#     img_size = [256, 192]
+#     train_set = LoadImagesAndLabels(root, img_size)
+#     data_loader = build_reid_train_loader(cfg, train_set=train_set)
+#     return data_loader
 
 def preprocess_image(batched_inputs):
     """
@@ -156,7 +149,7 @@ def computelosses(outputs, gt_labels,sample_weights=None):
 
     return loss_dict
 
-def train(hyp,opt):
+def train(hyp,opt,device):
     root='../data'
     start_epoch = 0
     epochs = opt.epochs
@@ -166,27 +159,30 @@ def train(hyp,opt):
     results_file = 'log/results.txt'
 
     #init device
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     #init dataset loader
-    args = default_argument_parser().parse_args()
-    cfg = setup(args)
+    # args = default_argument_parser().parse_args()
+    # cfg = setup(args)
     #TODO: remove cfg dependence(simplify code),refactor dataset loader
-    train_dataset=build_train_dataloader(cfg,root)
+    # train_dataset=build_train_dataloader(cfg,root)
     ##########
-    # img_size=[256,192]
-    # workers=8
-    # batch_size=opt.batch_size
-    # train_dataset=create_dataloader(root, img_size,batch_size,rank=opt.global_rank,world_size=opt.world_size,workers=workers)
+    img_size=[256,192]
+    workers=8
+    batch_size=opt.batch_size
+    train_dataset, dataset=create_dataloader(root, img_size,batch_size,rank=opt.global_rank,world_size=opt.world_size,workers=workers)
+    #数据从cpu转存到gpu上
     #########
 
     feat_dim=512
     num_classes=train_dataset.dataset.num_classes
     #init model
-    model=buildModel(feat_dim,num_classes).to(DEVICE)
+    model=buildModel(feat_dim,num_classes).to(device)
     #init optimizer
     optimizer=build_optimizer(hyp,model)
+
     iters_per_epoch = len(train_dataset.dataset) // IMS_PER_BATCH
     _data_loader_iter = iter(train_dataset)
+
     #init scheduler
     scheduler=build_lr_scheduler(hyp, optimizer, epochs)
 
@@ -197,10 +193,13 @@ def train(hyp,opt):
     for epoch in range(start_epoch,epochs):
         model.train()
         running_loss=0.0
-        mloss = torch.zeros(1, device=DEVICE)  # mean losses
-        for i in range(iters_per_epoch):
+        mloss = torch.zeros(1, device=device)  # mean losses
         # for i, data in enumerate(train_dataset):
+        for i in range(iters_per_epoch):
             data = next(_data_loader_iter)
+            for k in data:
+                if isinstance(data[k], torch.Tensor):
+                    data[k] = data[k].to(device=device, non_blocking=True)
             images = preprocess_image(data)
             pred = model(images)
             targets = data["targets"]
@@ -279,4 +278,4 @@ if __name__ == "__main__":
     # Hyperparameters
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.FullLoader)  # load hyps
-    train(hyp,opt)
+    train(hyp,opt,device)

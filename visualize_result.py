@@ -4,15 +4,15 @@
 @contact: sherlockliao01@gmail.com
 """
 
-import argparse
-import logging
-import sys
+# import argparse
+# import logging
+# import sys
 import glob
 import os
 
 import cv2
 #
-import numpy as np
+# import numpy as np
 import torch
 import tqdm
 from torch.backends import cudnn
@@ -46,30 +46,30 @@ cudnn.benchmark = True
 
 from model.model import buildModel
 import torch.nn.functional as F
-from fastreid.config import get_cfg
-from fastreid.engine import default_argument_parser,default_setup
-from fastreid.config import CfgNode as CN
+# from fastreid.config import get_cfg
+# from fastreid.engine import default_argument_parser,default_setup
+# from fastreid.config import CfgNode as CN
 
-def setup(args):
-    """
-    Create configs and perform basic setups.
-    """
-    cfg = get_cfg()
-    add_attr_config(cfg)
-    args.config_file="config/carattr_res18.yml"
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-    default_setup(cfg, args)
-    return cfg
+# def setup(args):
+#     """
+#     Create configs and perform basic setups.
+#     """
+#     cfg = get_cfg()
+#     add_attr_config(cfg)
+#     args.config_file="config/carattr_res18.yml"
+#     cfg.merge_from_file(args.config_file)
+#     cfg.merge_from_list(args.opts)
+#     cfg.freeze()
+#     default_setup(cfg, args)
+#     return cfg
 
-def add_attr_config(cfg):
-    _C = cfg
-
-    _C.MODEL.LOSSES.BCE = CN({"WEIGHT_ENABLED": True})
-    _C.MODEL.LOSSES.BCE.SCALE = 1.
-
-    _C.TEST.THRES = 0.5
+# def add_attr_config(cfg):
+#     _C = cfg
+#
+#     _C.MODEL.LOSSES.BCE = CN({"WEIGHT_ENABLED": True})
+#     _C.MODEL.LOSSES.BCE.SCALE = 1.
+#
+#     _C.TEST.THRES = 0.5
 
 def preprocess_image(batched_inputs):
     """
@@ -91,8 +91,10 @@ def preprocess_image(batched_inputs):
 
 if __name__ == '__main__':
     # demo = FeatureExtractionDemo(cfg, parallel=args.parallel)
-    args = default_argument_parser().parse_args()
-    cfg = setup(args)
+    # args = default_argument_parser().parse_args()
+    # cfg = setup(args)
+    img_size = [256, 192]
+    SIZE_TEST=img_size
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     feat_dim = 512
@@ -125,7 +127,7 @@ if __name__ == '__main__':
         # the model expects RGB inputs
         original_image = original_image[:, :, ::-1]
         # Apply pre-processing to image.
-        image = cv2.resize(original_image, tuple(cfg.INPUT.SIZE_TEST[::-1]), interpolation=cv2.INTER_CUBIC)
+        image = cv2.resize(original_image, tuple(SIZE_TEST[::-1]), interpolation=cv2.INTER_CUBIC)
         # Make shape with a new batch dimension which is adapted for
         # network input
         image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))[None]
