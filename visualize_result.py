@@ -1,4 +1,4 @@
-
+import errno
 import glob
 import os
 
@@ -8,8 +8,6 @@ import cv2
 import torch
 import tqdm
 from torch.backends import cudnn
-
-from fastreid.utils.file_io import PathManager
 
 cudnn.benchmark = True
 
@@ -33,6 +31,13 @@ def preprocess_image(batched_inputs):
     images.sub_(pixel_mean).div_(pixel_std)
     return images
 
+def custom_mkdirs(path):
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as e:
+        # EEXIST it can still happen if multiple processes are creating the dir
+        if e.errno != errno.EEXIST:
+            raise
 
 if __name__ == '__main__':
     img_size = [256, 192]
@@ -57,7 +62,7 @@ if __name__ == '__main__':
             classes_dict[idx] = class_name
 
     output="output/"
-    PathManager.mkdirs(output)
+    custom_mkdirs(output)
     input_path = ["test/*.jpg"]
     save_path = output
     input = glob.glob(os.path.expanduser(input_path[0]))
