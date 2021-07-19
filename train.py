@@ -121,7 +121,7 @@ def train(hyp,opt,device):
     results_file = 'log/results.txt'
 
     ##########
-    img_size=[256,192]
+    img_size=[256,192]  #[h,w]
     workers=8
     batch_size=opt.batch_size
     train_dataset, dataset=create_dataloader(root, img_size,batch_size,rank=opt.global_rank,world_size=opt.world_size,workers=workers)
