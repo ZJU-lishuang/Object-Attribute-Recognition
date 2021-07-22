@@ -44,12 +44,12 @@ if __name__ == '__main__':
     SIZE_TEST=img_size
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    feat_dim = 512
+    
     num_classes = 15
-    model = buildModel(feat_dim, num_classes).to(DEVICE)
+    model = buildModel(num_classes).to(DEVICE)
     model.eval()
 
-    modelfile="runs/Epoch-29.pth"
+    modelfile="weights/Epoch-29.pth"
 
     state_dict=torch.load(modelfile, map_location=lambda storage, loc: storage)
     model.load_state_dict(state_dict, strict=False)  # load

@@ -7,10 +7,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 class buildModel(nn.Module):
-    def __init__(self,feat_dim=512,num_classes=1):
+    def __init__(self,num_classes=1):
         super(buildModel, self).__init__()
-        self.backbone=ResNet(18)
-        self.head=AttrHead(feat_dim,num_classes)
+        self.depth=18
+        self.feat_dim=512
+        self.backbone=ResNet(self.depth)
+        self.head=AttrHead(self.feat_dim,num_classes)
 
     def forward(self,inputs):
         features=self.backbone(inputs)

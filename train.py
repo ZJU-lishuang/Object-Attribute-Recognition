@@ -116,37 +116,37 @@ def computelosses(outputs, gt_labels,sample_weights=None):
     return loss_dict
 
 def train(hyp,opt,device):
+    #data root TODO: need to change
     root='../data'
+
     start_epoch = 0
     epochs = opt.epochs
-    IMS_PER_BATCH=opt.batch_size
 
     save_dir=Path(opt.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)  # make dir
     results_file = save_dir / 'results.txt'
+    wdir = save_dir / 'weights'
+    wdir.mkdir(parents=True, exist_ok=True)  # make dir
 
     ##########
-    img_size=[256,192]  #[h,w]
-    workers=8
+    img_size=opt.img_size  #[h,w]
+    workers=opt.workers
     batch_size=opt.batch_size
     train_dataset, dataset=create_dataloader(root, img_size,batch_size,rank=opt.global_rank,world_size=opt.world_size,workers=workers)
     #########
-
-    feat_dim=512
+    
     num_classes=train_dataset.dataset.num_classes
     #init model
-    model=buildModel(feat_dim,num_classes).to(device)
+    model=buildModel(num_classes).to(device)
     #init optimizer
     optimizer=build_optimizer(hyp,model)
-
 
     #init scheduler
     scheduler=build_lr_scheduler(hyp, optimizer, epochs)
 
-
-    save_model_path="runs/"
     debug_steps = 100
     validation_epochs = 5
+
     for epoch in range(start_epoch,epochs):
         model.train()
         running_loss=0.0
@@ -168,6 +168,7 @@ def train(hyp,opt,device):
 
 
             running_loss += losses.item()
+            #进度显示1
             if i and i % debug_steps == 0:
                 avg_loss = running_loss / debug_steps
                 logger.info(
@@ -180,6 +181,7 @@ def train(hyp,opt,device):
             mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
             s = ('%10s' * 2 + '%10.4g' * 1) % (
                 '%g/%g' % (epoch, epochs - 1), mem, *mloss)
+            #进度显示2
             if i and i % debug_steps == 0:
                 logger.info(('\n' + '%10s' * 3) % ('Epoch', 'gpu_mem', 'loss'))
                 logger.info(s)
@@ -189,7 +191,7 @@ def train(hyp,opt,device):
 
 
         if epoch % validation_epochs == 0 or epoch == epochs - 1:
-            model_path = os.path.join(save_model_path, f"Epoch-{epoch}.pth")
+            model_path = os.path.join(wdir, f"Epoch-{epoch}.pth")
             model_state_dict=model.state_dict()
             torch.save(model_state_dict, model_path)
             # model.save(model_path)
@@ -220,8 +222,10 @@ if __name__ == "__main__":
     parser.add_argument('--hyp', type=str, default='config/hyp.scratch.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--batch-size', type=int, default=2, help='total batch size for all GPUs')
+    parser.add_argument('--img-size', nargs='+', type=int, default=[256, 192], help='[h, w] image sizes')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
+    parser.add_argument('--workers', type=int, default=8, help='maximum number of dataloader workers')
     parser.add_argument('--project', default='runs/train', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
