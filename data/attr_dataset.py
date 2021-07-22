@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 import os.path as osp
 import numpy as np
 from tqdm import tqdm
-from PIL import Image,ExifTags
+from PIL import Image,ExifTags,ImageOps
 import os
 import glob
 from pathlib import Path
@@ -17,7 +17,7 @@ import logging
 from torch._six import container_abcs, string_classes, int_classes
 from typing import Any, List, Sequence
 
-from fastreid.data.data_utils import read_image
+# from fastreid.data.data_utils import read_image
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +111,7 @@ def create_dataloader(root,img_size,batch_size,rank=-1,world_size=1, workers=8, 
     nw = min([os.cpu_count() // world_size, batch_size if batch_size > 1 else 0, workers])  # number of workers
     sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     loader = torch.utils.data.DataLoader if image_weights else InfiniteDataLoader
+    # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
     #build_reid_train_loader
     dataloader = loader(dataset,
                         batch_size=batch_size,
@@ -228,6 +229,51 @@ def resize(img, size, interpolation=Image.BILINEAR):
             return img.resize((ow, oh), interpolation)
     else:
         return img.resize(size[::-1], interpolation)
+
+def read_image(file_name, format=None):
+    """
+    Read an image into the given format.
+    Will apply rotation and flipping if the image has such exif information.
+
+    Args:
+        file_name (str): image file path
+        format (str): one of the supported image modes in PIL, or "BGR"
+    Returns:
+        image (np.ndarray): an HWC image
+    """
+    with open(file_name, "rb") as f:
+        image = Image.open(f)
+
+        # work around this bug: https://github.com/python-pillow/Pillow/issues/3973
+        try:
+            image = ImageOps.exif_transpose(image)
+        except Exception:
+            pass
+
+        if format is not None:
+            # PIL only supports RGB, so convert to RGB and flip channels over below
+            conversion_format = format
+            if format == "BGR":
+                conversion_format = "RGB"
+            image = image.convert(conversion_format)
+        image = np.asarray(image)
+
+        # PIL squeezes out the channel dimension for "L", so make it HWC
+        if format == "L":
+            image = np.expand_dims(image, -1)
+
+        # handle formats not supported by PIL
+        elif format == "BGR":
+            # flip channels if needed
+            image = image[:, :, ::-1]
+
+        # handle grayscale mixed in RGB images
+        elif len(image.shape) == 2:
+            image = np.repeat(image[..., np.newaxis], 3, axis=-1)
+
+        image = Image.fromarray(image)
+
+        return image
 
 class LoadImagesAndLabels(Dataset):
     dataset_dir = 'output'
