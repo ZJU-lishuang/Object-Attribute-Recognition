@@ -8,6 +8,9 @@ import math
 import argparse
 import yaml
 import torch.distributed as dist
+from pathlib import Path
+import glob
+import re
 
 from data.attr_dataset import create_dataloader
 
@@ -118,8 +121,9 @@ def train(hyp,opt,device):
     epochs = opt.epochs
     IMS_PER_BATCH=opt.batch_size
 
-    save_dir='log'
-    results_file = 'log/results.txt'
+    save_dir=Path(opt.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)  # make dir
+    results_file = save_dir / 'results.txt'
 
     ##########
     img_size=[256,192]  #[h,w]
@@ -197,16 +201,30 @@ def train(hyp,opt,device):
 
 
 
-
+def increment_path(path, exist_ok=True, sep=''):
+    # Increment path, i.e. runs/exp --> runs/exp{sep}0, runs/exp{sep}1 etc.
+    path = Path(path)  # os-agnostic
+    if (path.exists() and exist_ok) or (not path.exists()):
+        return str(path)
+    else:
+        dirs = glob.glob(f"{path}{sep}*")  # similar paths
+        matches = [re.search(rf"%s{sep}(\d+)" % path.stem, d) for d in dirs]
+        i = [int(m.groups()[0]) for m in matches if m]  # indices
+        n = max(i) + 1 if i else 2  # increment number
+        return f"{path}{sep}{n}"  # update path
 
 
 if __name__ == "__main__":
+    #create parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--hyp', type=str, default='config/hyp.scratch.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--batch-size', type=int, default=2, help='total batch size for all GPUs')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
+    parser.add_argument('--project', default='runs/train', help='save to project/name')
+    parser.add_argument('--name', default='exp', help='save to project/name')
+    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
 
     opt = parser.parse_args()
 
@@ -214,6 +232,8 @@ if __name__ == "__main__":
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(opt.global_rank)
+
+    opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok) 
 
     # DDP mode
     opt.total_batch_size = opt.batch_size

@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     output="output/"
     custom_mkdirs(output)
-    input_path = ["test/*.jpg"]
+    input_path = ["../data/test/*.jpg"]
     save_path = output
     input = glob.glob(os.path.expanduser(input_path[0]))
     for path in tqdm.tqdm(input):
