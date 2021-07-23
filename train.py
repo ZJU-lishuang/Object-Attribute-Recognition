@@ -146,7 +146,6 @@ def train(hyp,opt,device):
     #init scheduler
     scheduler=build_lr_scheduler(hyp, optimizer, epochs)
 
-    debug_steps = 100
     validation_epochs = 5
     nb = len(train_dataset)  # number of batches
 
@@ -183,9 +182,6 @@ def train(hyp,opt,device):
                 s = ('%10s' * 2 + '%10.4g' * 1) % (
                     '%g/%g' % (epoch, epochs - 1), mem, *mloss)
                 pbar.set_description(s)
-                # if i and i % debug_steps == 0:
-                #     logger.info(('\n' + '%10s' * 3) % ('Epoch', 'gpu_mem', 'loss'))
-                #     logger.info(s)
 
         scheduler.step()
 
