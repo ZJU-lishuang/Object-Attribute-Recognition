@@ -11,6 +11,7 @@ import torch.distributed as dist
 from pathlib import Path
 import glob
 import re
+from tqdm import tqdm
 
 from data.attr_dataset import create_dataloader
 
@@ -118,6 +119,7 @@ def computelosses(outputs, gt_labels,sample_weights=None):
 def train(hyp,opt,device):
     #data root TODO: need to change
     root='../data'
+    rank=opt.global_rank
 
     start_epoch = 0
     epochs = opt.epochs
@@ -146,12 +148,21 @@ def train(hyp,opt,device):
 
     debug_steps = 100
     validation_epochs = 5
+    nb = len(train_dataset)  # number of batches
 
     for epoch in range(start_epoch,epochs):
         model.train()
-        running_loss=0.0
+
         mloss = torch.zeros(1, device=device)  # mean losses
-        for i, data in enumerate(train_dataset):
+        pbar = enumerate(train_dataset)
+        logger.info(('\n' + '%10s' * 3) % ('Epoch', 'gpu_mem', 'loss'))
+        if rank in [-1, 0]:
+            pbar = tqdm(pbar, total=nb)  # progress bar
+        optimizer.zero_grad()
+        for i, data in pbar:
+            # ValueError: Expected more than 1 value per channel when training
+            if data["images"].shape[0]==1:
+                continue
             for k in data:
                 if isinstance(data[k], torch.Tensor):
                     data[k] = data[k].to(device=device, non_blocking=True)
@@ -166,25 +177,15 @@ def train(hyp,opt,device):
             losses.backward()
             optimizer.step()
 
-
-            running_loss += losses.item()
-            #进度显示1
-            if i and i % debug_steps == 0:
-                avg_loss = running_loss / debug_steps
-                logger.info(
-                    f"Epoch: {epoch}, Step: {i}, " +
-                    f"Average Loss: {avg_loss:.4f}, "
-                )
-                running_loss = 0.0
-
-            mloss = (mloss * i + losses.item()) / (i + 1)  # update mean losses
-            mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-            s = ('%10s' * 2 + '%10.4g' * 1) % (
-                '%g/%g' % (epoch, epochs - 1), mem, *mloss)
-            #进度显示2
-            if i and i % debug_steps == 0:
-                logger.info(('\n' + '%10s' * 3) % ('Epoch', 'gpu_mem', 'loss'))
-                logger.info(s)
+            if rank in [-1, 0]:
+                mloss = (mloss * i + losses.item()) / (i + 1)  # update mean losses
+                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
+                s = ('%10s' * 2 + '%10.4g' * 1) % (
+                    '%g/%g' % (epoch, epochs - 1), mem, *mloss)
+                pbar.set_description(s)
+                # if i and i % debug_steps == 0:
+                #     logger.info(('\n' + '%10s' * 3) % ('Epoch', 'gpu_mem', 'loss'))
+                #     logger.info(s)
 
         scheduler.step()
 

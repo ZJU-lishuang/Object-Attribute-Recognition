@@ -118,7 +118,8 @@ def create_dataloader(root,img_size,batch_size,rank=-1,world_size=1, workers=8, 
                         num_workers=nw,
                         sampler=sampler,
                         pin_memory=True,
-                        collate_fn=fast_batch_collator)
+                        collate_fn=fast_batch_collator,
+                        drop_last=False)
     return dataloader, dataset
 
 def fast_batch_collator(batched_inputs):
